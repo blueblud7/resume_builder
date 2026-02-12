@@ -1,0 +1,47 @@
+JANE SMITH
+jane.smith@email.com | +1-555-123-4567 | New York, NY
+linkedin.com/in/janesmith
+
+SUMMARY
+Experienced software engineer with 5+ years of expertise in full-stack development, specializing in React, Node.js, and cloud technologies. Proven track record of delivering scalable solutions and leading cross-functional teams.
+
+EXPERIENCE
+
+Senior Software Engineer | Tech Innovations Inc. | Jan 2021 - Present
+• Led development of microservices architecture serving 1M+ users
+• Improved application performance by 40% through code optimization
+• Mentored 5 junior developers and conducted code reviews
+• Implemented CI/CD pipelines reducing deployment time by 60%
+
+Software Engineer | Digital Solutions Co. | Jun 2019 - Dec 2020
+• Developed RESTful APIs using Node.js and Express
+• Built responsive web applications with React and TypeScript
+• Collaborated with design team to implement pixel-perfect UI components
+• Reduced bug reports by 30% through comprehensive unit testing
+
+Junior Developer | StartupXYZ | Jul 2018 - May 2019
+• Contributed to frontend development using React and Redux
+• Participated in agile development processes and daily standups
+• Fixed bugs and implemented new features based on user feedback
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+State University | Graduated: May 2018
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, Express, MongoDB, PostgreSQL, AWS, Docker, Kubernetes, Git, CI/CD, REST APIs, GraphQL, Agile/Scrum
+
+PROJECTS
+
+E-commerce Platform
+Built a full-stack e-commerce platform with shopping cart, payment integration, and admin dashboard
+Technologies: React, Node.js, MongoDB, Stripe API
+
+Task Management App
+Developed a real-time collaborative task management application
+Technologies: React, Socket.io, Express, PostgreSQL
+
+CERTIFICATIONS
+• AWS Certified Developer - Associate | Amazon Web Services | 2022
+• Professional Scrum Master I | Scrum.org | 2021

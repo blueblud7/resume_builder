@@ -1,0 +1,96 @@
+{
+  "personalInfo": {
+    "name": "Jane Smith",
+    "email": "jane.smith@email.com",
+    "phone": "+1-555-123-4567",
+    "location": "New York, NY",
+    "linkedin": "https://linkedin.com/in/janesmith"
+  },
+  "summary": "Experienced software engineer with 5+ years of expertise in full-stack development, specializing in React, Node.js, and cloud technologies. Proven track record of delivering scalable solutions and leading cross-functional teams.",
+  "experience": [
+    {
+      "company": "Tech Innovations Inc.",
+      "position": "Senior Software Engineer",
+      "startDate": "Jan 2021",
+      "endDate": "Present",
+      "description": [
+        "Led development of microservices architecture serving 1M+ users",
+        "Improved application performance by 40% through code optimization",
+        "Mentored 5 junior developers and conducted code reviews",
+        "Implemented CI/CD pipelines reducing deployment time by 60%"
+      ]
+    },
+    {
+      "company": "Digital Solutions Co.",
+      "position": "Software Engineer",
+      "startDate": "Jun 2019",
+      "endDate": "Dec 2020",
+      "description": [
+        "Developed RESTful APIs using Node.js and Express",
+        "Built responsive web applications with React and TypeScript",
+        "Collaborated with design team to implement pixel-perfect UI components",
+        "Reduced bug reports by 30% through comprehensive unit testing"
+      ]
+    },
+    {
+      "company": "StartupXYZ",
+      "position": "Junior Developer",
+      "startDate": "Jul 2018",
+      "endDate": "May 2019",
+      "description": [
+        "Contributed to frontend development using React and Redux",
+        "Participated in agile development processes and daily standups",
+        "Fixed bugs and implemented new features based on user feedback"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "State University",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "graduationDate": "May 2018"
+    }
+  ],
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "Express",
+    "MongoDB",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Git",
+    "CI/CD",
+    "REST APIs",
+    "GraphQL",
+    "Agile/Scrum"
+  ],
+  "projects": [
+    {
+      "name": "E-commerce Platform",
+      "description": "Built a full-stack e-commerce platform with shopping cart, payment integration, and admin dashboard",
+      "technologies": ["React", "Node.js", "MongoDB", "Stripe API"]
+    },
+    {
+      "name": "Task Management App",
+      "description": "Developed a real-time collaborative task management application",
+      "technologies": ["React", "Socket.io", "Express", "PostgreSQL"]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Developer - Associate",
+      "issuer": "Amazon Web Services",
+      "date": "2022"
+    },
+    {
+      "name": "Professional Scrum Master I",
+      "issuer": "Scrum.org",
+      "date": "2021"
+    }
+  ]
+}
