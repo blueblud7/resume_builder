@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import FileUpload from '@/components/FileUpload';
 import JobDescriptionInput from '@/components/JobDescriptionInput';
 import ResumePreview from '@/components/ResumePreview';
@@ -13,10 +13,17 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [originalResume, setOriginalResume] = useState<Resume | null>(null);
+  // editedResume: user's edits to the parsed resume before optimization
+  const [editedResume, setEditedResume] = useState<Resume | null>(null);
   const [modifiedResume, setModifiedResume] = useState<Resume | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+
+  const hasEdits = editedResume !== null;
+
+  // The resume to send to the optimizer (edited version takes priority)
+  const resumeForOptimization = editedResume ?? originalResume;
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
@@ -40,6 +47,7 @@ export default function Home() {
       }
 
       setOriginalResume(data.resume);
+      setEditedResume(null);
       setCurrentStep('input-jd');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse resume');
@@ -49,8 +57,16 @@ export default function Home() {
     }
   };
 
+  const handleResumeEdit = useCallback((updated: Resume) => {
+    setEditedResume(updated);
+  }, []);
+
+  const handleResetEdits = useCallback(() => {
+    setEditedResume(null);
+  }, []);
+
   const handleOptimizeResume = async () => {
-    if (!originalResume || !jobDescription.trim()) return;
+    if (!resumeForOptimization || !jobDescription.trim()) return;
 
     setError('');
     setIsLoading(true);
@@ -63,7 +79,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resume: originalResume,
+          resume: resumeForOptimization,
           jobDescription,
         }),
       });
@@ -88,6 +104,7 @@ export default function Home() {
     setCurrentStep('upload');
     setSelectedFile(null);
     setOriginalResume(null);
+    setEditedResume(null);
     setModifiedResume(null);
     setJobDescription('');
     setError('');
@@ -168,16 +185,46 @@ export default function Home() {
         {currentStep === 'input-jd' && originalResume && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                Your Resume
-              </h2>
-              <ResumePreview resume={originalResume} title="" />
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Your Resume
+                </h2>
+                <div className="flex items-center gap-3">
+                  {hasEdits && (
+                    <>
+                      <span className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+                        Edited
+                      </span>
+                      <button
+                        onClick={handleResetEdits}
+                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                      >
+                        Reset to original
+                      </button>
+                    </>
+                  )}
+                  <span className="text-xs text-gray-400">
+                    Click any field to edit
+                  </span>
+                </div>
+              </div>
+              <ResumePreview
+                resume={resumeForOptimization!}
+                title=""
+                editable
+                onUpdate={handleResumeEdit}
+              />
             </div>
 
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-6">
                 Enter Job Description
               </h2>
+              {hasEdits && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                  Your edited resume will be used for optimization.
+                </div>
+              )}
               <JobDescriptionInput
                 value={jobDescription}
                 onChange={setJobDescription}
@@ -206,12 +253,22 @@ export default function Home() {
           <div className="space-y-6">
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <ResumePreview resume={originalResume} title="Original Resume" />
+                <ResumePreview
+                  resume={resumeForOptimization!}
+                  title="Original Resume"
+                />
               </div>
               <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-gray-400">
+                    Click any field to edit
+                  </span>
+                </div>
                 <ResumePreview
                   resume={modifiedResume}
                   title="Optimized Resume"
+                  editable
+                  onUpdate={setModifiedResume}
                 />
               </div>
             </div>
