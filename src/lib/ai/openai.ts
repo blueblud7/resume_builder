@@ -165,3 +165,63 @@ Return the modified resume as JSON with the same structure. Return ONLY valid JS
     throw new Error('Failed to modify resume with AI');
   }
 }
+
+/**
+ * Generate a cover letter based on resume and job description
+ */
+export async function generateCoverLetter(
+  resume: Resume,
+  jobDescription: string,
+  companyName?: string
+): Promise<string> {
+  const companyRef = companyName ? `the ${companyName} team` : 'the hiring team';
+
+  const prompt = `You are an expert cover letter writer. Write a professional, compelling cover letter based on the candidate's resume and the target job description.
+
+Guidelines:
+- Address to ${companyRef}
+- Open with a strong hook that connects the candidate's background to the role
+- Highlight 2-3 most relevant experiences/skills from the resume that match the JD
+- Show enthusiasm for the specific role and company
+- Keep it concise (3-4 paragraphs)
+- Use professional but personable tone
+- Do NOT fabricate any experience or skills not present in the resume
+- Do NOT include placeholder brackets like [Your Name] — use the actual name from the resume
+- End with a clear call to action
+
+Candidate Resume:
+${JSON.stringify(resume, null, 2)}
+
+Job Description:
+${jobDescription}
+
+Write the cover letter as plain text. Do NOT include any markdown formatting.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional cover letter writer. Write compelling, tailored cover letters. Return plain text only.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+    });
+
+    const response = completion.choices[0].message.content;
+    if (!response) {
+      throw new Error('No response from OpenAI');
+    }
+
+    return response.trim();
+  } catch (error) {
+    console.error('Error generating cover letter:', error);
+    throw new Error('Failed to generate cover letter with AI');
+  }
+}

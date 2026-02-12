@@ -43,6 +43,19 @@ export interface GeneratePDFResponse {
   error?: string;
 }
 
+// Generate Cover Letter API
+export interface GenerateCoverLetterRequest {
+  resume: Resume;
+  jobDescription: string;
+  companyName?: string;
+}
+
+export interface GenerateCoverLetterResponse {
+  success: boolean;
+  coverLetter?: string;
+  error?: string;
+}
+
 // Error response
 export interface ErrorResponse {
   success: false;

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import FileUpload from '@/components/FileUpload';
 import JobDescriptionInput from '@/components/JobDescriptionInput';
 import ResumePreview from '@/components/ResumePreview';
 import PDFExport from '@/components/PDFExport';
 import { Resume } from '@/types/resume';
+import { generateCoverLetterPDF } from '@/lib/pdf/generator';
 
 type Step = 'upload' | 'parse' | 'input-jd' | 'optimize' | 'preview';
 
@@ -17,13 +18,92 @@ export default function Home() {
   const [editedResume, setEditedResume] = useState<Resume | null>(null);
   const [modifiedResume, setModifiedResume] = useState<Resume | null>(null);
   const [jobDescription, setJobDescription] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [coverLetter, setCoverLetter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [savedResumeTimestamp, setSavedResumeTimestamp] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ id: number; label: string | null; createdAt: string }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const hasEdits = editedResume !== null;
 
   // The resume to send to the optimizer (edited version takes priority)
   const resumeForOptimization = editedResume ?? originalResume;
+
+  // Auto-load saved resume and history on mount
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/resume').then(res => res.json()),
+      fetch('/api/resume/history').then(res => res.json()),
+    ])
+      .then(([resumeData, historyData]) => {
+        if (resumeData.success && resumeData.resume) {
+          setOriginalResume(resumeData.resume);
+          setSavedResumeTimestamp(resumeData.updatedAt);
+          setCurrentStep('input-jd');
+        }
+        if (historyData.success && historyData.history) {
+          setHistory(historyData.history);
+        }
+      })
+      .catch(() => {
+        // ignore — just show upload screen
+      })
+      .finally(() => setIsInitialLoading(false));
+  }, []);
+
+  const saveResumeToDb = (resume: Resume, label?: string) => {
+    fetch('/api/resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resume, label }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.updatedAt) {
+          setSavedResumeTimestamp(data.updatedAt);
+          loadHistory();
+        }
+      })
+      .catch(() => {
+        // fire-and-forget
+      });
+  };
+
+  const loadHistory = () => {
+    fetch('/api/resume/history')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.history) {
+          setHistory(data.history);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleRestoreFromHistory = (id: number) => {
+    fetch(`/api/resume/history?id=${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.entry) {
+          setOriginalResume(data.entry.data);
+          setEditedResume(null);
+          setCurrentStep('input-jd');
+          setShowHistory(false);
+          // Save as current active resume
+          saveResumeToDb(data.entry.data, `Restored from ${data.entry.label || new Date(data.entry.createdAt).toLocaleString()}`);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleDeleteHistoryEntry = (id: number) => {
+    fetch(`/api/resume/history?id=${id}`, { method: 'DELETE' })
+      .then(() => loadHistory())
+      .catch(() => {});
+  };
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
@@ -49,6 +129,9 @@ export default function Home() {
       setOriginalResume(data.resume);
       setEditedResume(null);
       setCurrentStep('input-jd');
+
+      // Auto-save parsed resume
+      saveResumeToDb(data.resume, 'Uploaded resume');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse resume');
       setCurrentStep('upload');
@@ -65,6 +148,13 @@ export default function Home() {
     setEditedResume(null);
   }, []);
 
+  const handleSaveAsBaseResume = () => {
+    if (!resumeForOptimization) return;
+    setOriginalResume(resumeForOptimization);
+    setEditedResume(null);
+    saveResumeToDb(resumeForOptimization, 'Manual save');
+  };
+
   const handleOptimizeResume = async () => {
     if (!resumeForOptimization || !jobDescription.trim()) return;
 
@@ -73,24 +163,39 @@ export default function Home() {
     setCurrentStep('optimize');
 
     try {
-      const response = await fetch('/api/modify-resume', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resume: resumeForOptimization,
-          jobDescription,
+      const [resumeResponse, coverLetterResponse] = await Promise.all([
+        fetch('/api/modify-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume: resumeForOptimization,
+            jobDescription,
+          }),
         }),
-      });
+        fetch('/api/generate-cover-letter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume: resumeForOptimization,
+            jobDescription,
+            companyName: companyName.trim() || undefined,
+          }),
+        }),
+      ]);
 
-      const data = await response.json();
+      const resumeData = await resumeResponse.json();
+      const coverLetterData = await coverLetterResponse.json();
 
-      if (!data.success || !data.modifiedResume) {
-        throw new Error(data.error || 'Failed to optimize resume');
+      if (!resumeData.success || !resumeData.modifiedResume) {
+        throw new Error(resumeData.error || 'Failed to optimize resume');
       }
 
-      setModifiedResume(data.modifiedResume);
+      setModifiedResume(resumeData.modifiedResume);
+
+      if (coverLetterData.success && coverLetterData.coverLetter) {
+        setCoverLetter(coverLetterData.coverLetter);
+      }
+
       setCurrentStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to optimize resume');
@@ -100,15 +205,39 @@ export default function Home() {
     }
   };
 
-  const handleReset = () => {
+  const handleNewJobDescription = () => {
+    setModifiedResume(null);
+    setCoverLetter('');
+    setJobDescription('');
+    setCompanyName('');
+    setError('');
+    setCurrentStep('input-jd');
+  };
+
+  const handleClearSavedResume = () => {
+    fetch('/api/resume', { method: 'DELETE' }).catch(() => {});
     setCurrentStep('upload');
     setSelectedFile(null);
     setOriginalResume(null);
     setEditedResume(null);
     setModifiedResume(null);
+    setCoverLetter('');
     setJobDescription('');
+    setCompanyName('');
     setError('');
+    setSavedResumeTimestamp(null);
   };
+
+  if (isInitialLoading) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
@@ -186,15 +315,28 @@ export default function Home() {
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Your Resume
-                </h2>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Your Resume
+                  </h2>
+                  {savedResumeTimestamp && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Last saved: {new Date(savedResumeTimestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
                 <div className="flex items-center gap-3">
                   {hasEdits && (
                     <>
                       <span className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
                         Edited
                       </span>
+                      <button
+                        onClick={handleSaveAsBaseResume}
+                        className="text-sm text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100 transition-colors"
+                      >
+                        Save as base resume
+                      </button>
                       <button
                         onClick={handleResetEdits}
                         className="text-sm text-gray-500 hover:text-gray-700 underline"
@@ -203,11 +345,57 @@ export default function Home() {
                       </button>
                     </>
                   )}
+                  <button
+                    onClick={() => { setShowHistory(!showHistory); if (!showHistory) loadHistory(); }}
+                    className="text-sm text-gray-500 hover:text-gray-700 bg-gray-100 px-3 py-1 rounded-full hover:bg-gray-200 transition-colors"
+                  >
+                    {showHistory ? 'Hide history' : 'History'}
+                  </button>
                   <span className="text-xs text-gray-400">
                     Click any field to edit
                   </span>
                 </div>
               </div>
+
+              {/* History Panel */}
+              {showHistory && (
+                <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Resume History</h3>
+                  {history.length === 0 ? (
+                    <p className="text-sm text-gray-400">No history yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {history.map(entry => (
+                        <div key={entry.id} className="flex items-center justify-between p-2 bg-white rounded border border-gray-100">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700 truncate">
+                              {entry.label || 'Untitled'}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {new Date(entry.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 ml-3">
+                            <button
+                              onClick={() => handleRestoreFromHistory(entry.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                            >
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHistoryEntry(entry.id)}
+                              className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <ResumePreview
                 resume={resumeForOptimization!}
                 title=""
@@ -225,12 +413,34 @@ export default function Home() {
                   Your edited resume will be used for optimization.
                 </div>
               )}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Google, Amazon, Meta..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
               <JobDescriptionInput
                 value={jobDescription}
                 onChange={setJobDescription}
                 onSubmit={handleOptimizeResume}
                 isLoading={isLoading}
               />
+            </div>
+
+            {/* Clear saved resume */}
+            <div className="text-center">
+              <button
+                onClick={handleClearSavedResume}
+                className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+              >
+                Clear saved resume &amp; start over
+              </button>
             </div>
           </div>
         )}
@@ -240,10 +450,10 @@ export default function Home() {
           <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              Optimizing Your Resume
+              Optimizing Your Resume & Generating Cover Letter
             </h2>
             <p className="text-gray-600">
-              AI is analyzing the job description and tailoring your resume...
+              AI is analyzing the job description, tailoring your resume, and writing a cover letter...
             </p>
           </div>
         )}
@@ -273,6 +483,38 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Cover Letter Section */}
+            {coverLetter && (
+              <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Cover Letter
+                </h2>
+                <textarea
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  className="w-full h-80 p-4 border border-gray-300 rounded-lg text-gray-800 leading-relaxed resize-y focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      const pdfDataUri = generateCoverLetterPDF(
+                        coverLetter,
+                        modifiedResume.personalInfo,
+                        companyName.trim() || undefined
+                      );
+                      const link = document.createElement('a');
+                      link.href = pdfDataUri;
+                      link.download = `${modifiedResume.personalInfo.name.replace(/\s+/g, '_')}${companyName.trim() ? '_' + companyName.trim().replace(/\s+/g, '_') : ''}_CoverLetter.pdf`;
+                      link.click();
+                    }}
+                    className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Download Cover Letter PDF
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">
                 Download Your Optimized Resume
@@ -281,14 +523,20 @@ export default function Home() {
                 <div className="flex-1">
                   <PDFExport
                     resume={modifiedResume}
-                    fileName="optimized-resume.pdf"
+                    fileName={`${modifiedResume.personalInfo.name.replace(/\s+/g, '_')}${companyName.trim() ? '_' + companyName.trim().replace(/\s+/g, '_') : ''}.pdf`}
                   />
                 </div>
                 <button
-                  onClick={handleReset}
+                  onClick={handleNewJobDescription}
                   className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Start Over
+                  New Job Description
+                </button>
+                <button
+                  onClick={handleClearSavedResume}
+                  className="px-6 py-3 border-2 border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                >
+                  Clear Saved Resume
                 </button>
               </div>
             </div>

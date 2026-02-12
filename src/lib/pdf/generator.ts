@@ -107,3 +107,80 @@ export function generateResumePDF(resume: Resume): string {
   // Return as base64
   return doc.output('datauristring');
 }
+
+/**
+ * Generate PDF from cover letter text
+ * @param coverLetter - Cover letter text
+ * @param personalInfo - Candidate's personal info for the header
+ * @param companyName - Optional company name
+ * @returns PDF as base64 string
+ */
+export function generateCoverLetterPDF(
+  coverLetter: string,
+  personalInfo: { name: string; email: string; phone?: string; location?: string },
+  companyName?: string
+): string {
+  const doc = new jsPDF();
+  let yPosition = 20;
+  const lineHeight = 7;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 20;
+  const maxWidth = pageWidth - 2 * margin;
+
+  const checkPageBreak = (needed: number) => {
+    if (yPosition + needed > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+  };
+
+  // Header — Name
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text(personalInfo.name, margin, yPosition);
+  yPosition += lineHeight + 2;
+
+  // Contact info
+  const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location]
+    .filter(Boolean)
+    .join(' | ');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(contactInfo, margin, yPosition);
+  yPosition += lineHeight + 3;
+
+  // Separator line
+  doc.setDrawColor(0);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += 10;
+
+  // Date
+  const today = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  doc.setFontSize(11);
+  doc.text(today, margin, yPosition);
+  yPosition += lineHeight + 5;
+
+  // Body — split by paragraphs
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+
+  const paragraphs = coverLetter.split(/\n\n+/);
+  paragraphs.forEach((paragraph) => {
+    const trimmed = paragraph.trim();
+    if (!trimmed) return;
+
+    const lines: string[] = doc.splitTextToSize(trimmed, maxWidth);
+    const blockHeight = lines.length * lineHeight;
+    checkPageBreak(blockHeight);
+
+    doc.text(lines, margin, yPosition);
+    yPosition += blockHeight + 4;
+  });
+
+  return doc.output('datauristring');
+}
